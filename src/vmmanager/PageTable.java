@@ -34,7 +34,13 @@ public class PageTable {
 			if (nextFrame == 0) return -(numOfPages+1); // this catches the zero case because 0 can't be negative
 			// return -(next available frame number)
 			// then the virtual memory manager can write into that frame
-			else return -nextFrame;
+			else {
+				// check if the next frame exceeds the memory content of the physical memory
+				if (VirtualMemoryManagerV2.getMemoryPageMax() <= nextFrame){
+					// 
+				}
+				return -nextFrame;
+			}
 		}
 	}
 	

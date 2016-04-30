@@ -12,9 +12,13 @@ public class VirtualMemoryManagerV2 {
 	PageTable pageTable;
 	int pageFaultCount = 0;
 	int transferedByteCount = 0;
-	int memoryPageSpace = 0;
+	private int memoryPageMax = 0;
 	
 	int addressSize = 4;
+	
+	public int getMemoryPageMax(){
+		return memoryPageMax;
+	}
 
 	// Constructor
 	public VirtualMemoryManagerV2(MainMemory memory, BackingStore disk, Integer pageSize) throws MemoryException {
@@ -26,7 +30,7 @@ public class VirtualMemoryManagerV2 {
 		this.pageSize = pageSize;
 		numOfPages = disk.size() / pageSize;
 		pageTable = new PageTable(numOfPages);
-		memoryPageSpace = memory.size() / pageSize; // how many pages can fit in memory
+		memoryPageMax = memory.size() / pageSize; // how many pages can fit in memory
 	}
   
   	/**
