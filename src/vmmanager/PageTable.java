@@ -14,13 +14,11 @@ public class PageTable {
 		}
 	}
 	
-	// mutator
-	public void incrementNextFrame(){
+	// updates the page table
+	public void update(int pageNumber, int frameNumber){
+		pageTable[pageNumber][1] = 1;			// sets valid bit once page is written to memory
+		pageTable[pageNumber][0] = frameNumber;	// writes the memory frame number to the page's row
 		nextFrame++;
-	}
-	
-	public void update(int pageNumber){
-		
 		return;
 	}
 	

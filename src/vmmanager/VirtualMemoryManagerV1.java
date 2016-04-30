@@ -33,18 +33,20 @@ public class VirtualMemoryManagerV1 {
   	 * 
   	 * @throws MemoryException If there is an invalid access
   	 */
-   	public void writeByte(Integer fourByteBinaryString, Byte value) throws MemoryException {
+   	public void writeByte(Integer fiveByteBinaryString, Byte value) throws MemoryException {
 		// TO IMPLEMENT: V0, V1, V2, V3, V4
+   		int pageNumber = getPageNumber(fiveByteBinaryString);
    		
    		// check pageTable to see if page is in memory or only on disk
+   		int memoryIndex = getMemoryIndex(pageNumber, fiveByteBinaryString);
    		// if it's in memory, then write to it
    		// if it's not, then the data needs to be pulled from disk
    			
    		// write value to the location
-   		memory.writeByte(fourByteBinaryString, value);
+   		memory.writeByte(memoryIndex, value);
    		
    		// get the binary string for the fourByteBinaryString
-   		String locationBits = BitwiseToolbox.getBitString(fourByteBinaryString, addressSize);
+   		String locationBits = BitwiseToolbox.getBitString(fiveByteBinaryString, addressSize);
    		
    		// print output message
    		System.out.println("RAM write: " + locationBits + " <-- " + value);
@@ -58,15 +60,46 @@ public class VirtualMemoryManagerV1 {
   	 * @throws MemoryException If there is an invalid access
   	 */
    	public Byte readByte(Integer fiveByteAddressString) throws MemoryException { 		// TO IMPLEMENT: V0, V1, V2, V3, V4
-   		// pull the pageNumber from the integer
-   		int pageNumber = fiveByteAddressString / pageSize;
+   		int pageNumber = getPageNumber(fiveByteAddressString);
    		byte value = 0;
    		String addressString = "";
    		
    		
+   		// call getMemoryIndex
+   		int memoryIndex = getMemoryIndex(pageNumber, fiveByteAddressString);
+   		
+		value = memory.readByte(memoryIndex);	// read location in memory	
+
+		// get the string of the address using BitwiseToolbox for printing output
+		addressString = BitwiseToolbox.getBitString(fiveByteAddressString, addressSize);
+		
+		// print the output message
+		System.out.println("RAM read: " + addressString + " --> " + value);
+  		return value;
+  	}
+   	
+   	/**
+   	 * returns the page number, given a virtual memory index
+   	 */
+   	public int getPageNumber(Integer fiveByteAddressString){
+   		// pull the pageNumber from the integer
+   		int pageNumber = fiveByteAddressString / pageSize;
+   		return pageNumber;
+   	}
+   	
+   	/**
+   	 * Checks the pageTable to see if the page is stored in memory
+   	 * if it's not, then it brings it into memory
+   	 * Method returns the index of the element in main memory
+   	 * @throws MemoryException 
+   	 **/
+   	public int getMemoryIndex(int pageNumber, int fiveByteAddressString) throws MemoryException{
+   		int memoryIndex;
+   		
    		// check page table to see if page is in memory 		
    		int pageLookUp = pageTable.lookUp(pageNumber);
    		// if it is, then read it
+   		
    		if (pageLookUp >= 0){
    			// we don't have to do anything because the data is in memory
    			System.out.println("Page " + pageNumber + " is in memory");
@@ -85,23 +118,17 @@ public class VirtualMemoryManagerV1 {
    			System.out.println("Bringing page " + pageNumber + " into frame " + nextOpenFrame);
 
    			diskToMemory(pageNumber, nextOpenFrame * pageSize); // move page from disk to Memory
-   			
-   			pageTable.incrementNextFrame(); // inrement frame since the open one's been used
+   			// update the page table
+   			pageTable.update(pageNumber, nextOpenFrame);
    		}
    		
-   		// read the data from physical memory
+   		// calculate the index in memory
 		int frameOffset = pageLookUp * pageSize;	// this is the offset of the address in physical memory
-		int pageIndex = BitwiseToolbox.extractBits(fiveByteAddressString, 3, 0);
-		value = memory.readByte(frameOffset + pageIndex);	// read location in memory
+		int pageIndex = BitwiseToolbox.extractBits(fiveByteAddressString, 0, 3) % pageSize; // offset within a page/frame
+   		memoryIndex = frameOffset + pageIndex;
 		
-
-		// get the string of the address using BitwiseToolbox for printing output
-		addressString = BitwiseToolbox.getBitString(fiveByteAddressString, addressSize);
-		
-		// print the output message
-		System.out.println("RAM read: " + addressString + " --> " + value);
-  		return value;
-  	}
+   		return memoryIndex;
+   	}
    	
    	
    	/**
@@ -115,7 +142,9 @@ public class VirtualMemoryManagerV1 {
    		for (int i = 0; i < pageSize; i++){
    			value = pageValues[i];
    			memory.writeByte(memoryAddress, value);
+   			memoryAddress++;
    		}
+   		
    	}
   	
   	/**
@@ -145,7 +174,6 @@ public class VirtualMemoryManagerV1 {
    	public void printDiskContent() throws MemoryException {
   		// TO IMPLEMENT: V1, V2, V3, V4
    		byte[] pageContent; // holds values in each page of disk
-   		
    		
    		for (int k = 0; k < numOfPages; k++){ 			// loop through the pages on disk
    			System.out.print("PAGE " + k + ": ");		// print page number
