@@ -11,6 +11,7 @@ public class VirtualMemoryManagerV1 {
 	Integer numOfPages = 0;
 	PageTable pageTable;
 	int pageFaultCount = 0;
+	int transferedByteCount = 0;
 	
 	int addressSize = 4;
 
@@ -24,7 +25,6 @@ public class VirtualMemoryManagerV1 {
 		this.pageSize = pageSize;
 		numOfPages = disk.size() / pageSize;
 		pageTable = new PageTable(numOfPages);
-		
 	}
   
   	/**
@@ -142,6 +142,7 @@ public class VirtualMemoryManagerV1 {
    		for (int i = 0; i < pageSize; i++){
    			value = pageValues[i];
    			memory.writeByte(memoryAddress, value);
+   			transferedByteCount++;
    			memoryAddress++;
    		}
    		
@@ -179,7 +180,9 @@ public class VirtualMemoryManagerV1 {
    			System.out.print("PAGE " + k + ": ");		// print page number
    			pageContent = disk.readPage(k);
    			for (int h = 0; h < pageSize; h++){			// loop through array holding page contents
-   				System.out.print(pageContent[h] + ","); // print values in page
+   				System.out.print(pageContent[h]); // print values in page
+   				if (((h+1) % pageSize) != 0)
+   					System.out.print(", ");
    			}
    			System.out.println();
    		}
@@ -193,10 +196,28 @@ public class VirtualMemoryManagerV1 {
   	 * @throws MemoryException If there is an invalid access
   	 */
   	public void writeBackAllPagesToDisk() throws MemoryException {
+  		printMemoryContent();
   		// TO IMPLEMENT: V1, V2, V3, V4
-  		
   		// use the PageTable to make sure that you write the memory back to disk in the correct order
+  		int frameIndex = 0;
+  		byte[] pageElements = new byte[pageSize];
   		
+  		// iterate through pages 0-numOfPages
+  		for (int pageNumber = 0; pageNumber < numOfPages; pageNumber++){
+  			// look at pageTable to find out where the page is stored in physical memory
+  			if (pageTable.isValid(pageNumber) == 1){ // if page is in physical memory, then overwrite disk
+  				frameIndex = getMemoryIndex(pageNumber, 0); // 0 because we're always looking for first element of the page
+
+	  			// populate an array with pageSize elements from page
+	  			for (int pageOffset = 0; pageOffset < pageSize; pageOffset++){
+	  				pageElements[pageOffset] = memory.readByte(frameIndex + pageOffset);
+	  			}
+	  			// use BackingStore.writePage() to write the array back to the disk in the appropriate order
+	  			disk.writePage(pageNumber, pageElements);
+	  			transferedByteCount += pageSize;
+  			}
+  			// else, don't do anything to the disk
+  		}
   	}
   	
   	/**
@@ -207,9 +228,7 @@ public class VirtualMemoryManagerV1 {
   	 */
   	public int getPageFaultCount() {
   		// TO IMPLEMENT: V1, V2, V3, V4
-  		
-		// increment this whenever the page searched for is not in main memory
-		
+		// increment this whenever the page searched for is not in main memory	
 		return pageFaultCount;
   	}
   	
@@ -221,8 +240,7 @@ public class VirtualMemoryManagerV1 {
   	 * @return Number of bytes transferred
   	 */
   	public int getTransferedByteCount() {
-		int count = 0;
   		// TO IMPLEMENT: V1, V2, V3, V4
-  		return count;
+  		return transferedByteCount;
   	}
 }
