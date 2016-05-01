@@ -14,11 +14,8 @@ public class VirtualMemoryManagerV2 {
 	int transferedByteCount = 0;
 	private int memoryPageMax = 0;
 	
-	int addressSize = 4;
 	
-	public int getMemoryPageMax(){
-		return memoryPageMax;
-	}
+	int addressSize = 4;
 
 	// Constructor
 	public VirtualMemoryManagerV2(MainMemory memory, BackingStore disk, Integer pageSize) throws MemoryException {
@@ -29,8 +26,13 @@ public class VirtualMemoryManagerV2 {
 		this.disk = disk;
 		this.pageSize = pageSize;
 		numOfPages = disk.size() / pageSize;
-		pageTable = new PageTable(numOfPages);
+
 		memoryPageMax = memory.size() / pageSize; // how many pages can fit in memory
+		pageTable = new PageTable(numOfPages, memoryPageMax);
+	}
+	
+	public int getMemoryPageMax(){
+		return memoryPageMax;
 	}
   
   	/**
@@ -73,7 +75,7 @@ public class VirtualMemoryManagerV2 {
    		
    		// call getMemoryIndex
    		int memoryIndex = getMemoryIndex(pageNumber, fiveByteAddressString);
-   		
+
 		value = memory.readByte(memoryIndex);	// read location in memory	
 
 		// get the string of the address using BitwiseToolbox for printing output
@@ -123,9 +125,11 @@ public class VirtualMemoryManagerV2 {
    			
    			System.out.println("Bringing page " + pageNumber + " into frame " + nextOpenFrame);
 
-   			diskToMemory(pageNumber, nextOpenFrame * pageSize); // move page from disk to Memory
+   			diskToMemory(pageNumber, nextOpenFrame * pageSize, nextOpenFrame); // move page from disk to Memory
    			// update the page table
+   			
    			pageTable.update(pageNumber, nextOpenFrame);
+   			
    		}
    		
    		// calculate the index in memory
@@ -141,17 +145,22 @@ public class VirtualMemoryManagerV2 {
    	 * Write data from disk to memory
    	 * @throws MemoryException 
    	**/
-   	public void diskToMemory(int pageNumber, int memoryAddress) throws MemoryException{
+   	public void diskToMemory(int pageNumber, int memoryAddress, int frameNumber) throws MemoryException{
    		byte[] pageValues = disk.readPage(pageNumber);
    		byte value;
    		
+
    		for (int i = 0; i < pageSize; i++){
    			value = pageValues[i];
    			memory.writeByte(memoryAddress, value);
    			transferedByteCount++;
    			memoryAddress++;
    		}
+
+   		pageTable.queueFrame(frameNumber);
    		
+
+
    	}
   	
   	/**
