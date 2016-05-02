@@ -15,7 +15,7 @@ public class VirtualMemoryManagerV2 {
 	private int memoryPageMax = 0;
 	
 	
-	int addressSize = 4;
+	int addressSize = 0;
 
 	// Constructor
 	public VirtualMemoryManagerV2(MainMemory memory, BackingStore disk, Integer pageSize) throws MemoryException {
@@ -29,6 +29,13 @@ public class VirtualMemoryManagerV2 {
 
 		memoryPageMax = memory.size() / pageSize; // how many pages can fit in memory
 		pageTable = new PageTable(numOfPages, memoryPageMax);
+		
+		int memorySizeTemp = memory.size();
+		addressSize = 0;
+		while (memorySizeTemp > 0){ // find log_2(memory.size())
+			memorySizeTemp = memorySizeTemp >> 1;
+			addressSize++;		// tells us how many bits we need to reference memory
+		}
 	}
 	
 	public int getMemoryPageMax(){
@@ -55,6 +62,8 @@ public class VirtualMemoryManagerV2 {
    		
    		// get the binary string for the fourByteBinaryString
    		String locationBits = BitwiseToolbox.getBitString(fiveByteBinaryString, addressSize);
+   		
+   		System.out.println("addressSize: " + addressSize);
    		
    		// print output message
    		System.out.println("RAM write: " + locationBits + " <-- " + value);
@@ -121,6 +130,13 @@ public class VirtualMemoryManagerV2 {
    			// catch the zero case
    			if (pageLookUp > numOfPages) pageLookUp = 0;
   
+   			if (pageTable.getPageTableFull()){
+	   			// need to evict the page and copy it back to disk
+	   			int evictedPage = pageLookUp;
+				System.out.println("Evicting page " + evictedPage);
+				evictPageToDisk(evictedPage);
+   			}
+   			
    			int nextOpenFrame = pageLookUp;	// assign the value to the next open frame
    			
    			System.out.println("Bringing page " + pageNumber + " into frame " + nextOpenFrame);
@@ -158,9 +174,19 @@ public class VirtualMemoryManagerV2 {
    		}
 
    		pageTable.queueFrame(frameNumber);
+
+   	}
+   	
+   	public void evictPageToDisk(int evictedPage) throws MemoryException{
+   		byte[] pageElements = new byte[pageSize];
+   		int memoryAddress = evictedPage * pageSize;
    		
-
-
+   		for (int i=0; i < pageSize; i++){ // populate array that will be written back to disk from memory
+   			pageElements[i] = memory.readByte(memoryAddress + i);
+   		}
+   		
+   		disk.writePage(evictedPage, pageElements);
+   		transferedByteCount += pageSize;
    	}
   	
   	/**
@@ -178,7 +204,6 @@ public class VirtualMemoryManagerV2 {
    			
    			System.out.println(addressBits + ": " + value);
    		}
-   		
   	}
   	
   	/**

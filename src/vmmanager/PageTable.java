@@ -10,8 +10,17 @@ public class PageTable {
 	private int numOfPages = 0;
 	private int maxMemoryFrames = 0;
 	Queue<Integer> freeFrames = new LinkedList<Integer>(); 
+	private boolean pageTableFull = false;
 	
 	// constructor
+	PageTable(Integer numOfPages){ // used when memory size is larger than disk
+		this.numOfPages = numOfPages;
+		pageTable = new int[numOfPages][2]; // pageTable[physical memory frame] [valid bit] for each page
+		for (int i = 0; i < numOfPages; i++){		// set all of the valid bits to invalid (0) initially
+			pageTable[i][1] = 0;
+		}
+	}
+
 	PageTable(Integer numOfPages, int numOfFrames){
 		this.numOfPages = numOfPages;
 		maxMemoryFrames = numOfFrames;
@@ -33,6 +42,10 @@ public class PageTable {
 	
 	public void setMaxMemoryFrames(int maxFrames){
 		maxMemoryFrames = maxFrames;
+	}
+	
+	public boolean getPageTableFull(){
+		return pageTableFull;
 	}
 	
 	// updates the page table
@@ -64,12 +77,13 @@ public class PageTable {
 			else {
 				// check if the next frame exceeds the memory content of the physical memory
 				if (nextFrame >= maxMemoryFrames){
+					pageTableFull = true;
 					// need to put things into a queue
 					int clearedFrame = freeFrames.remove();
-					int evictedPage = frameTable[clearedFrame];
+					Integer evictedPage = frameTable[clearedFrame];
 					pageTable[evictedPage][1] = 0;
-					System.out.println("Evicting page " + evictedPage);
-					return -clearedFrame;
+					if (clearedFrame == 0) return -(numOfPages+1); // needs to catch zero case like earlier
+					else return -clearedFrame;
 					
 				}
 				return -nextFrame;
