@@ -31,8 +31,9 @@ public class VirtualMemoryManagerV2 {
 		pageTable = new PageTable(numOfPages, memoryPageMax);
 		
 		int memorySizeTemp = memory.size();
-		addressSize = 0;
-		while (memorySizeTemp > 0){ // find log_2(memory.size())
+		
+		addressSize = -1;
+		while (memorySizeTemp > 1){ // find log_2(memory.size())
 			memorySizeTemp = memorySizeTemp >> 1;
 			addressSize++;		// tells us how many bits we need to reference memory
 		}
@@ -61,9 +62,8 @@ public class VirtualMemoryManagerV2 {
    		memory.writeByte(memoryIndex, value);
    		
    		// get the binary string for the fourByteBinaryString
-   		String locationBits = BitwiseToolbox.getBitString(fiveByteBinaryString, addressSize);
-   		
-   		System.out.println("addressSize: " + addressSize);
+   		String locationBits = BitwiseToolbox.getBitString(memoryIndex, addressSize);
+
    		
    		// print output message
    		System.out.println("RAM write: " + locationBits + " <-- " + value);
@@ -88,7 +88,7 @@ public class VirtualMemoryManagerV2 {
 		value = memory.readByte(memoryIndex);	// read location in memory	
 
 		// get the string of the address using BitwiseToolbox for printing output
-		addressString = BitwiseToolbox.getBitString(fiveByteAddressString, addressSize);
+		addressString = BitwiseToolbox.getBitString(memoryIndex, addressSize);
 		
 		// print the output message
 		System.out.println("RAM read: " + addressString + " --> " + value);
@@ -132,9 +132,10 @@ public class VirtualMemoryManagerV2 {
   
    			if (pageTable.getPageTableFull()){
 	   			// need to evict the page and copy it back to disk
-	   			int evictedPage = pageLookUp;
+	   			int evictedFrame = pageLookUp;
+	   			int evictedPage = pageTable.getPageInFrame(evictedFrame);
 				System.out.println("Evicting page " + evictedPage);
-				evictPageToDisk(evictedPage);
+				evictPageToDisk(evictedFrame);
    			}
    			
    			int nextOpenFrame = pageLookUp;	// assign the value to the next open frame
@@ -177,15 +178,16 @@ public class VirtualMemoryManagerV2 {
 
    	}
    	
-   	public void evictPageToDisk(int evictedPage) throws MemoryException{
+   	public void evictPageToDisk(int evictedFrame) throws MemoryException{
    		byte[] pageElements = new byte[pageSize];
-   		int memoryAddress = evictedPage * pageSize;
+   		int pageNumber = pageTable.getPageInFrame(evictedFrame);
+   		int memoryAddress = evictedFrame * pageSize;
    		
    		for (int i=0; i < pageSize; i++){ // populate array that will be written back to disk from memory
    			pageElements[i] = memory.readByte(memoryAddress + i);
    		}
    		
-   		disk.writePage(evictedPage, pageElements);
+   		disk.writePage(pageNumber, pageElements);
    		transferedByteCount += pageSize;
    	}
   	
@@ -236,7 +238,7 @@ public class VirtualMemoryManagerV2 {
   	 * @throws MemoryException If there is an invalid access
   	 */
   	public void writeBackAllPagesToDisk() throws MemoryException {
-  		printMemoryContent();
+  		//printMemoryContent();
   		// TO IMPLEMENT: V1, V2, V3, V4
   		// use the PageTable to make sure that you write the memory back to disk in the correct order
   		int frameIndex = 0;

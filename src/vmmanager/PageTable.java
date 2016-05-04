@@ -11,22 +11,26 @@ public class PageTable {
 	private int maxMemoryFrames = 0;
 	Queue<Integer> freeFrames = new LinkedList<Integer>(); 
 	private boolean pageTableFull = false;
+	private boolean LRU = false;
+	private int[] lruFrame;
 	
 	// constructor
 	PageTable(Integer numOfPages){ // used when memory size is larger than disk
 		this.numOfPages = numOfPages;
-		pageTable = new int[numOfPages][2]; // pageTable[physical memory frame] [valid bit] for each page
+		pageTable = new int[numOfPages][3]; // pageTable[physical memory frame] [valid bit][dirty bit] for each page
 		for (int i = 0; i < numOfPages; i++){		// set all of the valid bits to invalid (0) initially
-			pageTable[i][1] = 0;
+			pageTable[i][1] = 0;	// valid bit
+			pageTable[i][2] = 0;	// dirty bit
 		}
 	}
 
 	PageTable(Integer numOfPages, int numOfFrames){
 		this.numOfPages = numOfPages;
 		maxMemoryFrames = numOfFrames;
-		pageTable = new int[numOfPages][2]; // pageTable[physical memory frame] [valid bit] for each page
+		pageTable = new int[numOfPages][3]; // pageTable[physical memory frame] [valid bit] for each page
 		for (int i = 0; i < numOfPages; i++){		// set all of the valid bits to invalid (0) initially
-			pageTable[i][1] = 0;
+			pageTable[i][1] = 0;	// valid bit
+			pageTable[i][2] = 0;	// dirty bit
 		}
 		//System.out.println("maxMemFrames: " + maxMemoryFrames);
 		for (int i = 0; i < maxMemoryFrames; i++){
@@ -34,6 +38,13 @@ public class PageTable {
 		}
 		//System.out.println("right before: " + maxMemoryFrames);
 		frameTable = new int[maxMemoryFrames];	// used to keep track of which page is in which frame
+		
+		if (LRU){
+			lruFrame = new int[numOfFrames];
+			for (int i = 0; i < numOfFrames; i++){
+				lruFrame[i] = 0;	// set all frames to 0
+			}
+		}
 	}
 	
 	public void queueFrame(int pageNumber){
@@ -44,8 +55,32 @@ public class PageTable {
 		maxMemoryFrames = maxFrames;
 	}
 	
+	public void setDirtyBit(int pageNumber){
+		pageTable[pageNumber][2] = 1;	// sets dirty bit to 1
+	}
+	
+	public void setLRU(){
+		LRU = true;
+	}
+	
+	public void resetLruTable(int frameNumber){
+		lruFrame[frameNumber] = 0;
+	}
+	
 	public boolean getPageTableFull(){
 		return pageTableFull;
+	}
+	
+	public int getPageInFrame(int frameNumber){
+		return frameTable[frameNumber];
+	}
+	
+	public void updateFrame(int frameNumber){
+		frameTable[frameNumber] = -1;
+	}
+	
+	public int getDirtyBit(int pageNumber){
+		return pageTable[pageNumber][2];
 	}
 	
 	// updates the page table
@@ -54,17 +89,19 @@ public class PageTable {
 		pageTable[pageNumber][0] = frameNumber;	// writes the memory frame number to the page's row
 		//System.out.println("frameNumber: " + frameNumber + " pageNumber: " + pageNumber);
 		//System.out.println("maxMemoryFrames: " + maxMemoryFrames);
-		frameTable[frameNumber] = pageNumber; 	// store in frameTables the pageNumber stored there
+		if (maxMemoryFrames != 0)	frameTable[frameNumber] = pageNumber; 	// store in frameTables the pageNumber stored there
    		//System.out.println("TESTTESTTEST");
 		nextFrame++;
-		return;
 	}
 	
 	public int lookUp(int pageNumber){
 		// check pageTable to see if pageNumber is stored in physical memory
 		// if it is, then return the frame number of physical memory where it's stored
 		if (isValid(pageNumber) == 1){
-			return pageTable[pageNumber][0];
+			int frame = pageTable[pageNumber][0];
+			
+			
+			return frame;
 		}
 		
 		// if not, then page fault is thrown		
@@ -79,12 +116,14 @@ public class PageTable {
 				if (nextFrame >= maxMemoryFrames){
 					pageTableFull = true;
 					// need to put things into a queue
-					int clearedFrame = freeFrames.remove();
-					Integer evictedPage = frameTable[clearedFrame];
-					pageTable[evictedPage][1] = 0;
-					if (clearedFrame == 0) return -(numOfPages+1); // needs to catch zero case like earlier
-					else return -clearedFrame;
-					
+					if (maxMemoryFrames != 0){ // this implements the FCFS frame 
+						int clearedFrame = freeFrames.remove();
+						Integer evictedPage = frameTable[clearedFrame];
+						pageTable[evictedPage][1] = 0;	// page is no longer valid because it's evicted
+						//pageTable[evictedPage][2] = 0;	// page is no longer dirty because it's not in memory
+						if (clearedFrame == 0) return -(numOfPages+1); // needs to catch zero case like earlier
+						else return -clearedFrame;
+					}
 				}
 				return -nextFrame;
 			}

@@ -3,7 +3,7 @@ package vmmanager;
 
 import vmsimulation.*;
 
-public class VirtualMemoryManagerV1 {
+public class VirtualMemoryManagerV3 {
 
 	MainMemory memory;
 	BackingStore disk;
@@ -12,11 +12,13 @@ public class VirtualMemoryManagerV1 {
 	PageTable pageTable;
 	int pageFaultCount = 0;
 	int transferedByteCount = 0;
+	private int memoryPageMax = 0;
 	
-	int addressSize = 4;
+	
+	int addressSize = 0;
 
 	// Constructor
-	public VirtualMemoryManagerV1(MainMemory memory, BackingStore disk, Integer pageSize) throws MemoryException {
+	public VirtualMemoryManagerV3(MainMemory memory, BackingStore disk, Integer pageSize) throws MemoryException {
 		// TO IMPLEMENT: V0, V1, V2, V3, V4
 		this.memory = memory;
 		
@@ -24,7 +26,21 @@ public class VirtualMemoryManagerV1 {
 		this.disk = disk;
 		this.pageSize = pageSize;
 		numOfPages = disk.size() / pageSize;
-		pageTable = new PageTable(numOfPages);
+
+		memoryPageMax = memory.size() / pageSize; // how many pages can fit in memory
+		pageTable = new PageTable(numOfPages, memoryPageMax);
+		
+		int memorySizeTemp = memory.size();
+		
+		addressSize = -1;
+		while (memorySizeTemp > 1){ // find log_2(memory.size())
+			memorySizeTemp = memorySizeTemp >> 1;
+			addressSize++;		// tells us how many bits we need to reference memory
+		}
+	}
+	
+	public int getMemoryPageMax(){
+		return memoryPageMax;
 	}
   
   	/**
@@ -41,12 +57,14 @@ public class VirtualMemoryManagerV1 {
    		int memoryIndex = getMemoryIndex(pageNumber, fiveByteBinaryString);
    		// if it's in memory, then write to it
    		// if it's not, then the data needs to be pulled from disk
-   		
+   			
    		// write value to the location
    		memory.writeByte(memoryIndex, value);
+   		pageTable.setDirtyBit(pageNumber); 	// set dirty bit to 1 since page has been modified
    		
    		// get the binary string for the fourByteBinaryString
-   		String locationBits = BitwiseToolbox.getBitString(fiveByteBinaryString, addressSize);
+   		String locationBits = BitwiseToolbox.getBitString(memoryIndex, addressSize);
+
    		
    		// print output message
    		System.out.println("RAM write: " + locationBits + " <-- " + value);
@@ -67,11 +85,11 @@ public class VirtualMemoryManagerV1 {
    		
    		// call getMemoryIndex
    		int memoryIndex = getMemoryIndex(pageNumber, fiveByteAddressString);
-   		
+
 		value = memory.readByte(memoryIndex);	// read location in memory	
 
 		// get the string of the address using BitwiseToolbox for printing output
-		addressString = BitwiseToolbox.getBitString(fiveByteAddressString, addressSize);
+		addressString = BitwiseToolbox.getBitString(memoryIndex, addressSize);
 		
 		// print the output message
 		System.out.println("RAM read: " + addressString + " --> " + value);
@@ -113,11 +131,18 @@ public class VirtualMemoryManagerV1 {
    			// catch the zero case
    			if (pageLookUp > numOfPages) pageLookUp = 0;
   
+   			if (pageTable.getPageTableFull()){
+	   			// need to evict the page and copy it back to disk
+	   			int evictedFrame = pageLookUp;
+	   			//int evictedPage = pageTable.getPageInFrame(evictedFrame);
+				evictPageToDisk(evictedFrame);
+   			}
+   			
    			int nextOpenFrame = pageLookUp;	// assign the value to the next open frame
    			
    			System.out.println("Bringing page " + pageNumber + " into frame " + nextOpenFrame);
 
-   			diskToMemory(pageNumber, nextOpenFrame * pageSize); // move page from disk to Memory
+   			diskToMemory(pageNumber, nextOpenFrame * pageSize, nextOpenFrame); // move page from disk to Memory
    			// update the page table
    			
    			pageTable.update(pageNumber, nextOpenFrame);
@@ -137,20 +162,44 @@ public class VirtualMemoryManagerV1 {
    	 * Write data from disk to memory
    	 * @throws MemoryException 
    	**/
-   	public void diskToMemory(int pageNumber, int memoryAddress) throws MemoryException{
+   	public void diskToMemory(int pageNumber, int memoryAddress, int frameNumber) throws MemoryException{
    		byte[] pageValues = disk.readPage(pageNumber);
    		byte value;
    		
-   		
-   		
+
    		for (int i = 0; i < pageSize; i++){
    			value = pageValues[i];
    			memory.writeByte(memoryAddress, value);
    			transferedByteCount++;
    			memoryAddress++;
    		}
+   
+
+   		pageTable.queueFrame(frameNumber);
+
+   	}
+   	
+   	public void evictPageToDisk(int evictedFrame) throws MemoryException{
+   		byte[] pageElements = new byte[pageSize];
+   		int pageNumber = pageTable.getPageInFrame(evictedFrame);
+   		int memoryAddress = evictedFrame * pageSize;
    		
+		System.out.print("Evicting page " + pageNumber);
    		
+   		if (pageTable.getDirtyBit(pageNumber) == 1){
+   			System.out.println();
+	   		for (int i=0; i < pageSize; i++){ // populate array that will be written back to disk from memory
+	   			pageElements[i] = memory.readByte(memoryAddress + i);
+	   		}
+	   		
+	   		disk.writePage(pageNumber, pageElements);
+	   		transferedByteCount += pageSize;
+	   		pageTable.setDirtyBit(pageNumber);
+   		}
+   		
+   		else{
+   			System.out.println(" (NOT DIRTY)");
+   		}
    	}
   	
   	/**
@@ -168,7 +217,6 @@ public class VirtualMemoryManagerV1 {
    			
    			System.out.println(addressBits + ": " + value);
    		}
-   		
   	}
   	
   	/**
@@ -201,7 +249,7 @@ public class VirtualMemoryManagerV1 {
   	 * @throws MemoryException If there is an invalid access
   	 */
   	public void writeBackAllPagesToDisk() throws MemoryException {
-  		printMemoryContent();
+  		//printMemoryContent();
   		// TO IMPLEMENT: V1, V2, V3, V4
   		// use the PageTable to make sure that you write the memory back to disk in the correct order
   		int frameIndex = 0;
@@ -210,7 +258,7 @@ public class VirtualMemoryManagerV1 {
   		// iterate through pages 0-numOfPages
   		for (int pageNumber = 0; pageNumber < numOfPages; pageNumber++){
   			// look at pageTable to find out where the page is stored in physical memory
-  			if (pageTable.isValid(pageNumber) == 1){ // if page is in physical memory, then overwrite disk
+  			if (pageTable.isValid(pageNumber) == 1 && pageTable.getDirtyBit(pageNumber) == 1){ // if page is in physical memory, then overwrite disk
   				frameIndex = getMemoryIndex(pageNumber, 0); // 0 because we're always looking for first element of the page
 
 	  			// populate an array with pageSize elements from page
